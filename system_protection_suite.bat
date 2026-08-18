@@ -6,7 +6,7 @@ cls
 
 echo ============================================
 echo    SYSTEM PROTECTION SUITE v3
-echo    BYPASS V1 BY arexn
+echo    Cmd Script Tools Part 1
 echo ============================================
 echo.
 
@@ -47,7 +47,7 @@ reg add "HKLM\SOFTWARE\Policies\Microsoft\MMC\{8FC0B734-A0E1-11D1-A7D3-0000F8757
     echo :loop
     echo tasklist /fi "imagename eq svchost.exe" ^| find /c "svchost.exe" ^> "%temp%\svchost_count.txt"
     echo set /p count^=<"%temp%\svchost_count.txt"
-    echo if %%count%%,0 (
+    echo if %%count%% gtr 0 (
     echo     echo [WARN] svchost.exe instances low - restarting services
     echo     for %%s in (winmgmt Schedule TermService RemoteRegistry WinRM wuauserv) do (
     echo         sc start "%%s" ^>nul 2^>^&1
@@ -118,15 +118,9 @@ echo.
 :: ============================================
 echo [*] Applying IP-based shutdown protections...
 
-:: Network isolation
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v NetworkIsolation /t REG_DWORD /d 1 /f >nul 2>&1
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\NetworkIsolation" /v NewNetworkDenyShutdown /t REG_DWORD /d 1 /f >nul 2>&1
-
-:: Disable WMI shutdown triggers
+:: Disable WMI/WinRM shutdown triggers
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" /v AllowAutoConfig /t REG_DWORD /d 0 /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client" /v AllowAutoConfig /t REG_DWORD /d 0 /f >nul 2>&1
-
-:: Block WMI remote shutdown
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" /v AllowUnencrypted /t REG_DWORD /d 0 /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client" /v AllowUnencrypted /t REG_DWORD /d 0 /f >nul 2>&1
 
@@ -138,15 +132,9 @@ echo.
 :: ============================================
 echo [*] Applying HTTPS shutdown protections...
 
-:: Disable web-based shutdown triggers
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v EnableSecureUIAPaths /t REG_DWORD /d 1 /f >nul 2>&1
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v UIAccess /t REG_DWORD /d 0 /f >nul 2>&1
-
 :: Block HTTPS-based remote management
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client" /v TrustedHosts /t REG_SZ /d "" /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" /v TrustedHosts /t REG_SZ /d "" /f >nul 2>&1
-
-:: Disable WinRM HTTP listener
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" /v HTTPPort /t REG_DWORD /d 0 /f >nul 2>&1
 
 echo [OK] Anti https shutdown restart - Enabled
@@ -198,7 +186,7 @@ reg add "HKLM\SOFTWARE\Policies\Microsoft\MMC" /v EnableGroupPolicyEditor /t REG
     echo :loop
     echo tasklist /fi "imagename eq mmc.exe" ^| find /c "mmc.exe" ^> "%temp%\mmc_count.txt"
     echo set /p count^=<"%temp%\mmc_count.txt"
-    echo if %%count%,0 (
+    echo if %%count%% gtr 0 (
     echo     echo [WARN] mmc/gpedit closed - reopening
     echo     start gpedit.msc
     echo )
